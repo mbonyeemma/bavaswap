@@ -8,6 +8,15 @@ import {Spinner} from 'react-bootstrap';
 //var StellarSdk = require('stellar-sdk');
 //const server = new StellarSdk.Server ("https://horizon.stellar.org");
 import {ToastProvider, useToasts} from 'react-toast-notifications';
+import stringify from 'fast-json-stable-stringify';
+import abiArray from '../abi.json'
+var Web3 = require('web3');
+
+
+
+
+
+
 
 function Index({history}) {
   const [isPaying, setPaying] = useState (false);
@@ -129,9 +138,11 @@ function Index({history}) {
         setStatus(status);
          if(status == 'completed'){
           setlisten(false)
+          cancel()
         }else if(status == 'failed'){
           setCompleted('')
           setlisten(false)
+          cancel()
         }
     }catch(error) {
         console.log('error', error)
@@ -168,7 +179,7 @@ function Index({history}) {
         const response_memo = resp.memo
         const address = resp.pay_in_address
         setPayInAddress(address);
-        setmemo(response_memo);
+        setmemo(stringify(response_memo));
         setSending(false);
         setPaying (true);
         setlisten(true)
@@ -303,7 +314,30 @@ function Index({history}) {
   };
   */
 
+  async function burnTokens(destAddress,transferAmount, memo){
+    if (window.ethereum) {
 
+    const web3 = new Web3(window.ethereum);
+    await window.ethereum.enable();
+    const weiValue = Web3.utils.toWei('1', 'ether');
+
+    const contractAddress = "0x1758b868EbD5cfE6361b25d2875EbBF4199d5dcB"
+    var contract = new web3.eth.Contract(abiArray, contractAddress)
+    transferAmount = parseFloat(transferAmount);
+    const sendingAmount = weiValue
+    const xlmAddress = "G";
+    contract.methods.claimBurn(xlmAddress, sendingAmount).send({
+      from: window.web3.currentProvider.selectedAddress
+    })
+  }else{
+      addToast ('MetaMask extension not found', {appearance: 'error'});
+
+  }
+  
+  
+  }
+
+  
   return (
     <div className="overflow-hidden">
 
@@ -321,7 +355,7 @@ function Index({history}) {
                         <div className="space-y-10">
                           <span className="nameInput">Swap From</span>
                           <div className="row">
-                            <div className="col-12">
+                            <div className="col-3">
                               <select
                                 className="form-select custom-select"
                                 aria-label="Default select example"
@@ -332,6 +366,19 @@ function Index({history}) {
 
                               </select>
                             </div>
+
+                            <div className="col-8">
+                              <select
+                                className="form-select custom-select"
+                                aria-label="Default select example"
+                                                        value={fromchainvalue}
+                                                        onChange={handlefromChange}
+                              >
+                                {chainFrom.map (MakeItem)}
+
+                              </select>
+                            </div>
+
 
                           </div>
                         </div>
@@ -536,10 +583,21 @@ function Index({history}) {
                               Back
                             </a>
                            
+                         
+                            <a
+                              style={{margin: 10}}
+                              href="#"
+                              onClick={burnTokens}
+                              className="btn btn-grad"
+                            >
+                              Open Metamask
+                            </a>
+                           
                           </div>
-
-                          
                         </div>
+
+
+
                                     {listen?<div>
                                     <Spinner
                                     as="span"
