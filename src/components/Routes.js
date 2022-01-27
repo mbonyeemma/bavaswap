@@ -17,7 +17,6 @@ export default function Routes () {
 
   return (
       <BrowserRouter>
-        <Header/>
 
         <Route path="/"   component={Index} />
     

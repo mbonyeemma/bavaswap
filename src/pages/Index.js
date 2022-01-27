@@ -10,7 +10,21 @@ import {Spinner} from 'react-bootstrap';
 import {ToastProvider, useToasts} from 'react-toast-notifications';
 import stringify from 'fast-json-stable-stringify';
 import abiArray from '../abi.json'
+import {useMoralis} from 'react-moralis';
+
+const appId = "uJ33bXMkFxCSiircX2zTTvSyCiojORvL138aA4Ei";
+const serverUrl = "https://cdn06vqwo73l.usemoralis.com:2053/server";
+
+
 var Web3 = require('web3');
+const contractAddress_polygon = "0x50d7bE8C1ab4D69cF4c487aAB01Edc168fe3aA1a"
+const contractAddress_bsc = "0xFaB9a5f8a3C20D26Af31D275f7e25b4401Dad8e1"
+const contractAddress_eth = "0xFF8cC6Abc855c93FAABCb745E135872511c834bb"
+
+const chain_bsc = 97
+const chain_eth = 4
+const chain_polygon = 80001
+
 
 
 
@@ -19,12 +33,26 @@ var Web3 = require('web3');
 
 
 function Index({history}) {
+  const {authenticate, Moralis, isAuthenticated, user, CustomUser,logout} = useMoralis ();
+  Moralis.start({ serverUrl, appId })
+
   const [isPaying, setPaying] = useState (false);
   const [wrappedTokens, setWrappedToken] = useState ([
     ['wHODL', 'polygon'],
-    ['bHODL', 'binance'],
+    ['wHODL', 'bsc'],
+    ['wHODL', 'eth'],
+    ['HODL', 'stellar']
   ]);
-  const [hodl, setHodl] = useState ([['HODL', 'stellar']]);
+  const [hodl, setHodl] = useState ([
+  ['HODL', 'stellar'],
+  ['wHODL', 'bsc'],
+  ['wHODL', 'polygon'],
+  ['wHODL', 'eth'],
+
+]);
+const [addressInfo, setAddressObject] = useState ([]);
+
+
   const [chainFrom, setFromChain] = useState (hodl);
   const [chainto, setToChain] = useState (wrappedTokens);
   const [receivingAccount, setReceivingAccount] = useState ('');
@@ -38,11 +66,12 @@ function Index({history}) {
   const [pay_in_address, setPayInAddress] = useState('');
   const [txn_resp_completed, setCompleted] = useState('');
   const [txn_resp_received, setReceived] = useState('');
-  const [tx_status, setStatus] = useState('pending');
+  const [tx_status, setStatus] = useState('');
   const [intervalId, setIntervalId] = useState(null);
   const [listen, setlisten] = useState(null);
   const [showPayQr, setShowPayQR] = useState(false);
   const [showMemoRq, setShowmemoQR] = useState(false);
+  const [swapAmount, setAmount] = useState('');
   
 
   
@@ -57,11 +86,9 @@ function Index({history}) {
 
 
   const MakeItem = X => {
-    return <option  value={X[1]} >{X[0]} ({X[1]})</option>;
+    return <option  value={X.get('chain')} >{X.get('tokenCode')} ({X.get('chain')})</option>;
   };
-  const MakeToItem = X => {
-    return <option  value={X[1]}>{X[0]} ({X[1]})</option>;
-  };
+
 
   const swapUi = () => {
     setReceivingAccount('')
@@ -78,10 +105,16 @@ function Index({history}) {
       addToast ('Enter a valid  receiving address', {appearance: 'error'});
       return;
     }
-  sendRequest();
+    if(fromchainvalue == 'stellar'){
+      sendRequest();
+    }else{
+      setPaying (true);
+    }
+
   };
   useEffect (() => {
     cancel ();
+    getAccounts()
   }, []);
   const cancel = () => {
     clearInterval(intervalId);
@@ -92,7 +125,10 @@ function Index({history}) {
     var v = e.target.value;
     setReceivingAccount (v);
   };
-
+  const updateSendingAmount = e => {
+    var v = e.target.value;
+    setAmount (v);
+  };
   const handlefromChange = e => {
     var v = e.target.value;
     setFromchainValue (v);
@@ -114,90 +150,125 @@ function Index({history}) {
     }
   };
 
-
-
-  const getRequest = async (req_memo) => {
  
 
-    var myHeaders = new Headers();
-    myHeaders.append("Content-Type", "application/json");
-    
-    
-    try{
-        var response = await fetch ("http://localhost:8081/"+req_memo);
-        const resp = await response.json()
 
-        const data = resp[0]
-        const status = data.status
-        const tx_hash = data.tx_hash
-        const pay_out_hash = data.pay_out_hash
-        setReceived(tx_hash)
-        setCompleted(pay_out_hash)
-        console.log(data)
+ 
 
+
+  const getRequest= async (req_memo) => {
+        try {
+console.log("hash", req_memo)
+    const StellarLogin = Moralis.Object.extend ('bvPayments');
+    const query = new Moralis.Query (StellarLogin);
+    
+    if(fromchainvalue == 'stellar'){
+      query.equalTo("payInMemo", req_memo);
+    }else{
+      query.equalTo("payInHash", req_memo);
+    }
+    const items = await query.find ();
+    console.log(items)
+    if(items.length>0){
+    const data = items[0]
+
+        const status = data.get('txnStatus')
         setStatus(status);
-         if(status == 'completed'){
+        if(status == 'received'){
+          const tx_hash = data.get('payInHash')
+          setReceived(tx_hash)
+          addToast ("Transaction recived", {appearance: 'info'});
+        }else if(status == 'completed'){
+          const pay_out_hash = data.get('payOutHash')
+
           setlisten(false)
-          cancel()
+          setCompleted(pay_out_hash)
+          addToast ("Transaction completed", {appearance: 'success'});
+          clearInterval(intervalId);
+          setSending(false)
         }else if(status == 'failed'){
           setCompleted('')
           setlisten(false)
-          cancel()
+          clearInterval(intervalId);
+          addToast ("Transaction failed", {appearance: 'success'});
+          setSending(false)
         }
-    }catch(error) {
-        console.log('error', error)
-        addToast ('Error getting pay in account', {appearance: 'error'});
       }
 
-
+    } catch (err) {
+      console.log(err)
+      //addToast ("error fetching memo", {appearance: 'error'});
+    }
+  }
+  function between(min, max) {  
+    return Math.floor(
+      Math.random() * (max - min) + min
+    )
   }
 
-  const sendRequest = async () => {
-    setSending(true)
-    const req = {
-      "pay_in_chain": fromchainvalue,
-      "pay_out_chain": tochainvalue,
-      "payout_address": receivingAccount
+  const getAccounts=async()=>{
+    const bvAccounts = Moralis.Object.extend ('bvAccounts');
+    const query = new Moralis.Query (bvAccounts);
+    const items = await query.find ();
+    console.log (items);
+    try {
+     setAddressObject(items)
+
+   
+
+    } catch (err) {
+      addToast ("error getting addresses", {appearance: 'error'});
     }
+  }
 
-    var myHeaders = new Headers();
-    myHeaders.append("Content-Type", "application/json");
-    
-    var raw = JSON.stringify(req);
-    
-    var requestOptions = {
-      method: 'POST',
-      headers: myHeaders,
-      body: raw,
-      redirect: 'follow'
-    };
-    try{
-        var response = await fetch ("http://localhost:8081", requestOptions
-        );
-        const resp = await response.json()
-        console.log(resp)
-        const response_memo = resp.memo
-        const address = resp.pay_in_address
-        setPayInAddress(address);
-        setmemo(stringify(response_memo));
-        setSending(false);
-        setPaying (true);
-        setlisten(true)
-
-        var interId = setInterval(function(){ 
-          getRequest(response_memo);
-        }, 3000);
-        setIntervalId(interId);
-
-    }catch(error) {
-        setSending(false);
-        console.log('error', error)
-        addToast ('Error getting pay in account', {appearance: 'error'});
+  const getpayAddress=async()=>{
+    for (let i = 0; i < addressInfo.length; i++) {
+      const object = addressInfo[i];
+      const chain  =object.get('chain')
+      const address  =object.get('address')
+      if(chain == fromchainvalue){
+        setPayInAddress(address)
+        return address
       }
-
-
+   }
+   return ''
   }
   
+  const sendRequest = async () => {
+    const payin = await getpayAddress()
+    setSending(true)
+    const mm = between(10000000,99999999).toString()
+
+    const payIninfo = Moralis.Object.extend("bvPayments");
+    const payinfo = new payIninfo();
+    payinfo.set ('payOutChain', tochainvalue);
+    payinfo.set ('payInChain', fromchainvalue);
+    payinfo.set ('payInAccount', payin);
+    payinfo.set ('payInMemo', mm);
+    payinfo.set ('payOutAddress', receivingAccount);
+    payinfo.set ('txnStatus', 'pending');
+    payinfo.save()
+    .then((payinfo)  => {
+      console.log(payinfo)
+      setmemo(mm)
+      setPayInAddress(payin);
+      setSending(false);
+      setPaying (true);
+      setlisten(true)
+      var interId = setInterval(function(){ 
+        getRequest(mm);
+      }, 10000);
+      setIntervalId(interId);
+      
+
+          
+    }, (error) => {
+      setSending(false)
+
+      addToast('Failed to create new object, with error code: ' + error.message , {appearance: 'error'});
+    });
+  }
+
   function connect(wallet) {
     window.ethereum
       .request({ method: 'eth_requestAccounts' })
@@ -215,6 +286,25 @@ function Index({history}) {
         }
       });
   }
+
+  const switchNetwork= async (chain)=>{
+    const chainId = "0x"+chain.toString(16)
+    
+    try {
+      await window.web3.currentProvider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId:chainId }]
+      });
+      addToast ('Network changed ', {appearance: 'success'});
+
+      return null
+    } catch (error) {
+      addToast ('Error switching network, please switch metamask network manually', {appearance: 'error'});
+      return null
+
+    }
+  }
+
 
   const OpenRabet = () => {
     if (window.rabet) {
@@ -314,23 +404,92 @@ function Index({history}) {
   };
   */
 
+  const getAddress = (chain) =>{
+    switch(chain){
+      case "polygon":
+        return contractAddress_polygon;
+      case "bsc":
+        return contractAddress_bsc
+      case "eth":
+        return contractAddress_eth
+      default:
+        return null
+    }
+  }
+
+  const getChainid = (chain) =>{
+    switch(chain){
+      case "polygon":
+        return chain_polygon;
+      case "bsc":
+        return chain_bsc
+      case "eth":
+        return chain_eth
+      default:
+        return null
+    }
+  }
+
   async function burnTokens(destAddress,transferAmount, memo){
+    if(swapAmount == ''){
+      addToast ('enter a valid amount', {appearance: 'error'});
+      return;
+    }
+
+   setSending(true)
+
+
+    const contractAddress = getAddress(fromchainvalue);
     if (window.ethereum) {
 
     const web3 = new Web3(window.ethereum);
-    await window.ethereum.enable();
-    const weiValue = Web3.utils.toWei('1', 'ether');
 
-    const contractAddress = "0x1758b868EbD5cfE6361b25d2875EbBF4199d5dcB"
+    const chainIdHex = web3.currentProvider.chainId;
+    const chainIdDec = await web3.eth.getChainId();
+    console.log(chainIdHex);
+    console.log(chainIdDec);
+    if(chainIdDec != getChainid(fromchainvalue)){
+      await switchNetwork(getChainid(fromchainvalue))
+
+    }
+
+
+    console.log(window.web3.currentProvider)
+    await window.ethereum.enable();
+    const weiValue = Web3.utils.toWei(swapAmount, 'ether');
+
     var contract = new web3.eth.Contract(abiArray, contractAddress)
     transferAmount = parseFloat(transferAmount);
     const sendingAmount = weiValue
-    const xlmAddress = "G";
-    contract.methods.claimBurn(xlmAddress, sendingAmount).send({
+    const xlmAddress = receivingAccount
+    contract.methods.claimBurn(xlmAddress, sendingAmount, fromchainvalue, tochainvalue).send({
       from: window.web3.currentProvider.selectedAddress
     })
+    .then(transactionHash => { 
+      const hash = transactionHash['transactionHash']
+      addToast ('Transaction sent '+transactionHash['transactionHash'], {appearance: 'success'});
+      setReceived(hash)
+
+      var interId = setInterval(function(){ 
+        getRequest(hash);
+      }, 10000);
+      setIntervalId(interId);
+
+
+    })
+   .then(receipt => {
+      
+
+    }).catch((error) => {
+      const message = error.message;
+      addToast (message, {appearance: 'error'});
+      setSending(false)
+
+    })  
+  
   }else{
       addToast ('MetaMask extension not found', {appearance: 'error'});
+      setSending(false)
 
   }
   
@@ -355,48 +514,24 @@ function Index({history}) {
                         <div className="space-y-10">
                           <span className="nameInput">Swap From</span>
                           <div className="row">
-                            <div className="col-3">
+                            <div className="col-12">
                               <select
                                 className="form-select custom-select"
                                 aria-label="Default select example"
                                                         value={fromchainvalue}
                                                         onChange={handlefromChange}
                               >
-                                {chainFrom.map (MakeItem)}
+                                {addressInfo.map (MakeItem)}
 
                               </select>
                             </div>
 
-                            <div className="col-8">
-                              <select
-                                className="form-select custom-select"
-                                aria-label="Default select example"
-                                                        value={fromchainvalue}
-                                                        onChange={handlefromChange}
-                              >
-                                {chainFrom.map (MakeItem)}
-
-                              </select>
-                            </div>
+                         
 
 
                           </div>
                         </div>
-                        <div
-                          style={{
-                            display: 'flex',
-                            marginTop: 30,
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <img
-                            className="makehref"
-                            onClick={swapUi}
-                            style={{color: 'black', width: 50}}
-                            src={swap}
-                          />
-                        </div>
+                       
                         <div className="space-y-10">
                           <span className="nameInput">Swap To</span>
                           <div className="row">
@@ -408,7 +543,7 @@ function Index({history}) {
                                 value={tochainvalue}
                                 onChange={handleToChange}
                               >
-                                {chainto.map (MakeToItem)}
+                                  {addressInfo.map (MakeItem)}
                               </select>
                             </div>
                           </div>
@@ -459,6 +594,24 @@ function Index({history}) {
                           </div>
                         </div>
                         
+                      
+
+                          {fromchainvalue !='stellar'?<div className="space-y-10">
+                          <span className="nameInput">Swap Amount</span>
+                          <div className="row">
+                            <div className="col-12">
+                            <input
+                                type="text"
+                                value={swapAmount}
+                                name="amount"
+                                onChange={updateSendingAmount}
+                                placeholder="enter token amount"
+                                className="form-control"
+                              />
+                            </div>
+                          </div>
+                        </div>:<div/>}
+                          
 
 
 
@@ -480,15 +633,36 @@ function Index({history}) {
   Creating request ...
 </span>
 </div>: <div>
-                            <a
+                            {fromchainvalue=='stellar'?<a
                               href="#"
                               onClick={showPayment}
                               className="btn btn-grad"
                             >
                               Continue to payment
-                            </a>
+                            </a>:
+
+                            <a
+                              style={{margin: 10}}
+                              href="#"
+                              onClick={burnTokens}
+                              className="btn btn-grad"
+                            >
+                              Pay with metamask
+                            </a>}
+
                           </div>}
+
+                          
                         </div>
+                        <div>
+                                    {tx_status =='pending'?<p>Transaction created, request id {memo}</p>:<span/>}
+                                    {(tx_status =='received' || txn_resp_received!='')?<p>transaction received {fromchainvalue} {txn_resp_received}</p>:<span/>}
+                                    {tx_status =='paying'?<p>Transaction paying {txn_resp_received}</p>:<span/>}
+                                    {tx_status =='completed'?<p>Transaction completed, payout tx_id {tochainvalue} {txn_resp_completed}</p>:<span/>}
+                                    {tx_status =='failed'?<p>Transaction not completed, please contact our support</p>:<span/>}
+                                  
+
+                                      </div>
                       </div>
                     </div>
                   </div>
@@ -508,8 +682,12 @@ function Index({history}) {
                       <h3 className="text-left">Make payment</h3>
                     </div>
                     <div className="box is__big">
-                      <div className="space-y-20 mb-0">
-                        
+                    <div className="space-y-20 mb-0">
+
+                    {fromchainvalue == 'stellar'?
+
+                        <div>
+
                         <div className="space-y-10">
                           <span className="nameInput">
                             Send payment to this address
@@ -538,7 +716,6 @@ function Index({history}) {
                           </div>
 
 
-                        {fromchainvalue == 'stellar'?
                         <div className="space-y-10">
                           <span className="nameInput">Memo( Required)</span>
                           <div>
@@ -561,7 +738,9 @@ function Index({history}) {
 
                             </div>
                             </div>
-                        </div>:<div/>}
+                        </div>
+
+                          </div>:<div/>}
 
                         <div className="space-y-10">
                           <p className="nameInput">Tokens will be sent to</p>
@@ -584,21 +763,14 @@ function Index({history}) {
                             </a>
                            
                          
-                            <a
-                              style={{margin: 10}}
-                              href="#"
-                              onClick={burnTokens}
-                              className="btn btn-grad"
-                            >
-                              Open Metamask
-                            </a>
+                            
                            
                           </div>
                         </div>
+                        
 
-
-
-                                    {listen?<div>
+                        
+                                    {listen ?<div>
                                     <Spinner
                                     as="span"
                                     animation="border"
@@ -612,10 +784,10 @@ function Index({history}) {
                                     </div>:<div/>}
 
                                     <div>
-                                    {tx_status =='pending'?<p>transaction created, request id {memo}</p>:<span/>}
-                                    {(tx_status =='received' || txn_resp_received!='')?<p>transaction received {txn_resp_received}</p>:<span/>}
-                                    {tx_status =='paying'?<p>transaction paying {txn_resp_received}</p>:<span/>}
-                                    {tx_status =='completed'?<p>transaction completed, payout tx_id {txn_resp_completed}</p>:<span/>}
+                                    {tx_status =='pending'?<p>Transaction created, request id {memo}</p>:<span/>}
+                                    {(tx_status =='received' || txn_resp_received!='')?<p>transaction received {fromchainvalue} {txn_resp_received}</p>:<span/>}
+                                    {tx_status =='paying'?<p>Transaction paying {txn_resp_received}</p>:<span/>}
+                                    {tx_status =='completed'?<p>Transaction completed, payout tx_id {tochainvalue} {txn_resp_completed}</p>:<span/>}
                                     {tx_status =='failed'?<p>Transaction not completed, please contact our support</p>:<span/>}
                                   
 

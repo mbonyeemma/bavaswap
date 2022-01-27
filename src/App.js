@@ -7,9 +7,8 @@ import { ToastProvider, useToasts } from 'react-toast-notifications';
 function App() {
   return (
     <div className="App">
-                <ToastProvider autoDismiss={true}>
+                <ToastProvider>
 
-            <Header />
             <Index />
             </ToastProvider>
 
