@@ -9,7 +9,9 @@ import { Spinner } from 'react-bootstrap';
 import { ToastProvider, useToasts } from 'react-toast-notifications';
 import stringify from 'fast-json-stable-stringify';
 import abiArray from '../abi.json'
+
 import { useMoralis } from 'react-moralis';
+
 var StellarSdk = require('stellar-sdk');
 const server = new StellarSdk.Server("https://horizon.stellar.org");
 
@@ -28,10 +30,9 @@ const chain_eth = 4
 const chain_polygon = 80001
 
 
-function Index({ history }) {
+function SwiftUI() {
   const { authenticate, Moralis, isAuthenticated, user, CustomUser, logout } = useMoralis();
-  Moralis.start({ serverUrl, appId })
-
+  // Moralis.start({ serverUrl, appId })
   const [isPaying, setPaying] = useState(false);
   const [wrappedTokens, setWrappedToken] = useState([
     ['wHODL', 'polygon'],
@@ -41,19 +42,16 @@ function Index({ history }) {
   ]);
   const [hodl, setHodl] = useState([
     ['HODL', 'stellar'],
-    ['wHODL', 'bsc'],
     ['wHODL', 'polygon'],
-    ['wHODL', 'eth'],
-
+    ['wHODL', 'bsc'],
+    ['wHODL', 'eth']
   ]);
   const [addressInfo, setAddressObject] = useState([]);
-
-
   const [chainFrom, setFromChain] = useState(hodl);
   const [chainto, setToChain] = useState(wrappedTokens);
   const [receivingAccount, setReceivingAccount] = useState('');
-  const [fromchainvalue, setFromchainValue] = useState('stellar');
-  const [tochainvalue, setTochainvalue] = useState('polygon');
+  const [fromchainvalue, setFromchainValue] = useState('');
+  const [tochainvalue, setTochainvalue] = useState('stellar');
   const { addToast } = useToasts();
   const [hasMetamask, setHasMetamask] = useState(false);
   const [sending, setSending] = useState(false);
@@ -70,30 +68,30 @@ function Index({ history }) {
   const [swapAmount, setAmount] = useState('');
   const [isRabetPayment, setPayWithRabet] = useState(false);
 
+  const [chainFee, setchainFee] = useState('');
+  const [depositCoinFeeRate, setdepositCoinFeeRate] = useState('');
+  const [depositMax, setdepositMax] = useState('');
+  const [depositMin, setdepositMin] = useState('');
+  const [instantRate, setinstantRate] = useState('');
+  const [isDiscount, setisDiscount] = useState('');
+  const [minerFee, setminerFee] = useState('');
+  const [receiveCoinFee, setreceiveCoinFee] = useState('');
+  const [refundAddress, setRefundAddress] = useState('');
+  const [receiveCoinAmt, setreceiveCoinAmt] = useState('');
+  
+  const [swiftData, setswiftData] = useState([]);
 
 
-  const [inputField, setInputField] = useState([{ "xlmAddress": '', "ethAddress": '' }]);
-
-  const inputsHandler = e => {
-    setInputField({
-      ...inputField,
-      [e.target.name]: e.target.value,
-    });
-  };
 
 
   const MakeItem = X => {
-    return <option value={X.get('chain')} >{X.get('tokenCode')} ({X.get('chain')})</option>;
+    return <option value={X['coinCode']} >{X['coinCode']} - {X['coinName']}</option>;
+  };
+  const MakeHodlItem = X => {
+    return <option value={X[1]} >{X[0]} ( {X[1]} )</option>;
   };
 
 
-  const swapUi = () => {
-    setReceivingAccount('')
-    setFromChain(chainto);
-    setToChain(chainFrom);
-    setFromchainValue(tochainvalue)
-    setTochainvalue(fromchainvalue)
-  };
   const showPayment = () => {
     setReceived('')
     setCompleted('')
@@ -111,12 +109,166 @@ function Index({ history }) {
   };
   useEffect(() => {
     cancel();
-    getAccounts()
+    //getAccounts()
+    getSWIFTAssets()
   }, []);
   const cancel = () => {
     clearInterval(intervalId);
     setPaying(false);
   };
+
+  const getSWIFTAssets = async () => {
+
+
+    var myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/json");
+
+    var raw = JSON.stringify({
+      "supportType": "advanced"
+    });
+
+    var requestOptions = {
+      method: 'POST',
+      headers: myHeaders,
+      body: raw,
+      redirect: 'follow'
+    };
+
+    fetch("http://localhost:8085/queryCoinListByType", requestOptions)
+      .then(response => response.json())
+      .then(result => {
+        console.log(result.data)
+        setswiftData(result.data)
+      })
+      .catch(error => console.log('error', error));
+  }
+
+
+  const getBaseInfo = (fromchain) => {
+    setinstantRate('')
+    var myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/json");
+
+    var raw = JSON.stringify({
+      "depositCoinCode": fromchain,
+      "receiveCoinCode": "HODL"
+    });
+
+    var requestOptions = {
+      method: 'POST',
+      headers: myHeaders,
+      body: raw,
+      redirect: 'follow'
+    };
+
+    fetch("http://localhost:8085/getBaseInfo", requestOptions)
+      .then(response => response.json())
+      .then(result => {
+        const resCode = result.resCode
+        if (resCode == 800) {
+          const dt = result.data
+
+          setchainFee(dt["chainFee"])
+          setdepositCoinFeeRate(dt["depositCoinFeeRate"])
+          setdepositMax(dt["depositMax"])
+          setdepositMin(dt["depositMin"])
+          setinstantRate(dt["instantRate"])
+          setisDiscount(dt["isDiscount"])
+          setminerFee(dt["minerFee"])
+          setreceiveCoinFee(dt["receiveCoinFee"])
+
+        }
+
+        console.log(result)
+      }
+      )
+      .catch(error => console.log('error', error));
+  }
+
+  const guidGenerator=()=> {
+    var S4 = function() {
+       return (((1+Math.random())*0x10000)|0).toString(16).substring(1);
+    };
+    return (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4());
+}
+const makeExchange=()=>{
+
+  if(swapAmount < depositMin){
+    addToast('Amount less than minimum', { appearance: 'error' });
+return;
+  }
+
+  if(swapAmount > depositMax){
+    addToast('Amount more than maximum', { appearance: 'error' });
+return;
+  }
+  setSending(true)
+
+  var myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+
+const recAmount = parseFloat(swapAmount)* parseFloat(instantRate)
+const receiveCoinAmt = recAmount.toFixed(6)
+const randomId = guidGenerator();
+
+const bd = JSON.stringify({
+  "equipmentNo": "Zsda3529430s90468518",
+  "sessionUuid": "",
+  "sourceType": "ANDROID",
+  "userNo": "",
+  "orderId": randomId,
+  "depositCoinCode": fromchainvalue,
+  "receiveCoinCode": "HODL",
+  "depositCoinAmt": swapAmount,
+  "receiveCoinAmt": receiveCoinAmt,
+  "receiveSwftAmt": receiveCoinAmt,
+  "destinationAddr": receivingAccount,
+  "refundAddr": refundAddress,
+  "sourceFlag": "HODL",
+  "developerId": ""
+});
+
+
+
+var requestOptions = {
+  method: 'POST',
+  headers: myHeaders,
+  body: bd,
+  redirect: 'follow'
+};
+
+fetch("http://localhost:8085/accountExchange", requestOptions)
+  .then(response => response.json())
+  .then(result => {
+    setSending(false)
+    const resCode = result.resCode
+    if(resCode == 800){
+      const data = result.data
+      var paddress = data["platformAddr"]
+      if(paddress.includes("#")){
+        const splitArray = paddress.split("#")
+        paddress = splitArray[0]
+        const memo = splitArray[1]
+        setmemo(memo)
+
+      }
+
+     
+      const receiveCoinAmt = data["receiveCoinAmt"]
+
+      setPayInAddress(paddress)
+      setreceiveCoinAmt(receiveCoinAmt)
+      setPaying(true)
+      addToast('Payment generated', { appearance: 'success' });
+
+    }
+    console.log(result)})
+  .catch(error => {
+     setSending(false)
+    console.log('error', error)});
+}
+
+
 
   const updateReceivingAccount = e => {
     var v = e.target.value;
@@ -129,6 +281,13 @@ function Index({ history }) {
   const handlefromChange = e => {
     var v = e.target.value;
     setFromchainValue(v);
+
+    getBaseInfo(v)
+  };
+
+  const updateRefundAcc = e => {
+    var v = e.target.value;
+    setRefundAddress(v);
   };
 
   const handleToChange = e => {
@@ -146,10 +305,6 @@ function Index({ history }) {
 
     }
   };
-
-
-
-
 
 
 
@@ -181,7 +336,7 @@ function Index({ history }) {
           setlisten(false)
           setCompleted(pay_out_hash)
           addToast("Transaction completed", { appearance: 'success' });
-          
+
           setSending(false)
         } else if (status == 'failed') {
           setCompleted('')
@@ -210,8 +365,6 @@ function Index({ history }) {
     console.log(items);
     try {
       setAddressObject(items)
-
-
 
     } catch (err) {
       addToast("error getting addresses", { appearance: 'error' });
@@ -251,9 +404,9 @@ function Index({ history }) {
         setmemo(mm)
         setlisten(true)
 
-        if(isRabetPayment){
+        if (isRabetPayment) {
           makePaymentTransfer(payin, mm)
-        }else{
+        } else {
           setSending(false);
           setPaying(true);
 
@@ -338,7 +491,7 @@ function Index({ history }) {
         .connect()
         .then(result => {
           sendRequest()
-          
+
         })
         .catch(error => {
           setSending(false)
@@ -533,7 +686,7 @@ function Index({ history }) {
               <div className="col-lg-8 col-md-10 requests__content">
                 <div className="requests__wrap space-y-20">
                   <div>
-                    <h3 className="text-left">Stellar - EVM Swap</h3>
+                    <h3 className="text-left">SWIFT - Swap</h3>
                   </div>
                   <div className="box is__big">
                     <div className="space-y-20 mb-0">
@@ -547,7 +700,7 @@ function Index({ history }) {
                               value={fromchainvalue}
                               onChange={handlefromChange}
                             >
-                              {addressInfo.map(MakeItem)}
+                              {swiftData.map(MakeItem)}
 
                             </select>
                           </div>
@@ -569,11 +722,24 @@ function Index({ history }) {
                               value={tochainvalue}
                               onChange={handleToChange}
                             >
-                              {addressInfo.map(MakeItem)}
+                              {chainFrom.map(MakeHodlItem)}
                             </select>
                           </div>
                         </div>
                       </div>
+
+
+                      {instantRate!=''?<div>
+                        <p>Exchange Rate: {instantRate}</p>
+                        <p>chainFee: {chainFee}</p>
+                        <p>depositCoinFeeRate: {depositCoinFeeRate}</p>
+                        <p>depositMax: {depositMax}</p>
+                        <p>depositMin: {depositMin}</p>
+                        <p>isDiscount: {isDiscount}</p>
+                        <p>minerFee: {minerFee}</p>
+                        <p>receiveCoinFee: {receiveCoinFee}</p>
+                      </div>:<div/>}
+
 
                       <div className="space-y-10">
                         <span className="nameInput">Receiving address</span>
@@ -620,6 +786,26 @@ function Index({ history }) {
                         </div>
                       </div>
 
+                      <div className="space-y-10">
+                        <span className="nameInput">Refund address</span>
+
+                        <div className="row">
+                          <div className="col-11">
+                            <input
+                              type="text"
+                              value={refundAddress}
+                              name="refundAddress"
+                              onChange={updateRefundAcc}
+                              placeholder="Enter your address here"
+                              className="form-control"
+                            />
+
+                              </div>
+                              </div>
+                              </div>
+                           
+
+                      
 
 
                       {fromchainvalue != 'stellar' || isRabetPayment ? <div className="space-y-10">
@@ -658,45 +844,13 @@ function Index({ history }) {
                           <span className="visually">
                             Creating request ...
                           </span>
-                        </div> : <div>
-                          {fromchainvalue == 'stellar' ? <div>
-                            {isRabetPayment?<div>
-                              <a
-                              href="#"
-                              onClick={makePayment}
-                              className="btn btn-grad"
-                            >
-                              Pay with Rabet
-                            </a><a
-                              href="#"
-                              onClick={()=>setPayWithRabet(false)}
-                            >
-                              Pay QR Code
-                            </a></div>:<div>
-                              <a
-                              href="#"
-                              onClick={showPayment}
-                              className="btn btn-grad"
-                            >
-                               Continue to QR Pay
-                            </a>
-                            <a
-                              href="#"
-                              onClick={()=>setPayWithRabet(true)}
-                            >
-                              Pay with Rabet
-                            </a></div>}
-                          </div> :
-
-                            <a
-                              style={{ margin: 10 }}
-                              href="#"
-                              onClick={burnTokens}
-                              className="btn btn-grad"
-                            >
-                              Pay with metamask
-                            </a>}
-
+                        </div> : <div><a
+                                href="#"
+                                onClick={makeExchange}
+                                className="btn btn-grad"
+                              >
+                                Send Request
+                              </a>
                         </div>}
 
 
@@ -731,9 +885,13 @@ function Index({ history }) {
                   <div className="box is__big">
                     <div className="space-y-20 mb-0">
 
-                      {fromchainvalue == 'stellar' ?
 
                         <div>
+                          <div>
+                          <p>Pay Amount: {swapAmount} {fromchainvalue}</p>
+                          <p>Receive Amount: {receiveCoinAmt} HODL</p>
+
+                            </div>
 
                           <div className="space-y-10">
                             <span className="nameInput">
@@ -787,7 +945,7 @@ function Index({ history }) {
                             </div>
                           </div>
 
-                        </div> : <div />}
+                        </div>
 
                       <div className="space-y-10">
                         <p className="nameInput">Tokens will be sent to</p>
@@ -851,4 +1009,4 @@ function Index({ history }) {
   );
 }
 
-export default Index;
+export default SwiftUI;

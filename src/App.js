@@ -2,6 +2,7 @@ import logo from './logo.svg';
 import './App.css';
 import Header from './components/Header'
 import Index from './pages/Index'
+import SwiftUI from './pages/SwiftUI'
 import { ToastProvider, useToasts } from 'react-toast-notifications';
 
 function App() {
@@ -9,7 +10,7 @@ function App() {
     <div className="App">
                 <ToastProvider>
 
-            <Index />
+            <SwiftUI />
             </ToastProvider>
 
     </div>
