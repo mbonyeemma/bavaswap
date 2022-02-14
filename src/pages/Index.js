@@ -43,7 +43,7 @@ function Index({ history }) {
     ['HODL', 'stellar'],
     ['wHODL', 'bsc'],
     ['wHODL', 'polygon'],
-    ['wHODL', 'eth'],
+    ['wHODL', 'eth']
 
   ]);
   const [addressInfo, setAddressObject] = useState([]);

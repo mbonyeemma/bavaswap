@@ -24,6 +24,7 @@ var Web3 = require('web3');
 const contractAddress_polygon = "0x50d7bE8C1ab4D69cF4c487aAB01Edc168fe3aA1a"
 const contractAddress_bsc = "0xFaB9a5f8a3C20D26Af31D275f7e25b4401Dad8e1"
 const contractAddress_eth = "0xFF8cC6Abc855c93FAABCb745E135872511c834bb"
+const BRIDGE_ADDRESS = "GAVB5LGENQYKQ3IIOBEG56HGJLOANZZD6BYIB6DFGTKSGBLFXP7MYFVR"
 
 const chain_bsc = 97
 const chain_eth = 4
@@ -32,7 +33,7 @@ const chain_polygon = 80001
 
 function SwiftUI() {
   const { authenticate, Moralis, isAuthenticated, user, CustomUser, logout } = useMoralis();
-  // Moralis.start({ serverUrl, appId })
+  Moralis.start({ serverUrl, appId })
   const [isPaying, setPaying] = useState(false);
   const [wrappedTokens, setWrappedToken] = useState([
     ['wHODL', 'polygon'],
@@ -44,7 +45,12 @@ function SwiftUI() {
     ['HODL', 'stellar'],
     ['wHODL', 'polygon'],
     ['wHODL', 'bsc'],
-    ['wHODL', 'eth']
+    ['wHODL', 'eth'],
+    ['ETH', 'ETH'],
+    ['XLM', 'XLM'],
+    ['BNB', 'BNB'],
+    ['MATIC', 'MATIC'],
+    ['AVAX', 'AVAX']
   ]);
   const [addressInfo, setAddressObject] = useState([]);
   const [chainFrom, setFromChain] = useState(hodl);
@@ -78,7 +84,8 @@ function SwiftUI() {
   const [receiveCoinFee, setreceiveCoinFee] = useState('');
   const [refundAddress, setRefundAddress] = useState('');
   const [receiveCoinAmt, setreceiveCoinAmt] = useState('');
-  
+  const [reqMemo, setreqMemo] = useState('');
+
   const [swiftData, setswiftData] = useState([]);
 
 
@@ -88,9 +95,19 @@ function SwiftUI() {
     return <option value={X['coinCode']} >{X['coinCode']} - {X['coinName']}</option>;
   };
   const MakeHodlItem = X => {
-    return <option value={X[1]} >{X[0]} ( {X[1]} )</option>;
+    const v = X[0] + ":" + X[1]
+    return <option value={v}>{X[0]} ( {X[1]} )</option>;
   };
 
+  const getToAssetName = (data) => {
+    const myArray = data.split(":");
+    return myArray[1]
+  }
+
+  const getToAssetCode = (data) => {
+    const myArray = data.split(":");
+    return myArray[0]
+  }
 
   const showPayment = () => {
     setReceived('')
@@ -116,6 +133,7 @@ function SwiftUI() {
     clearInterval(intervalId);
     setPaying(false);
   };
+
 
   const getSWIFTAssets = async () => {
 
@@ -146,12 +164,16 @@ function SwiftUI() {
 
   const getBaseInfo = (fromchain) => {
     setinstantRate('')
+    var toCode = getToAssetCode(tochainvalue)
+    if (toCode == "wHODL") {
+      toCode = "HODL"
+    }
     var myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
     var raw = JSON.stringify({
       "depositCoinCode": fromchain,
-      "receiveCoinCode": "HODL"
+      "receiveCoinCode": toCode
     });
 
     var requestOptions = {
@@ -185,88 +207,105 @@ function SwiftUI() {
       .catch(error => console.log('error', error));
   }
 
-  const guidGenerator=()=> {
-    var S4 = function() {
-       return (((1+Math.random())*0x10000)|0).toString(16).substring(1);
+  const guidGenerator = () => {
+    var S4 = function () {
+      return (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
     };
-    return (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4()+S4());
-}
-const makeExchange=()=>{
-
-  if(swapAmount < depositMin){
-    addToast('Amount less than minimum', { appearance: 'error' });
-return;
+    return (S4() + S4() + "-" + S4() + "-" + S4() + "-" + S4() + "-" + S4() + S4() + S4());
   }
+  const makeExchange = () => {
 
-  if(swapAmount > depositMax){
-    addToast('Amount more than maximum', { appearance: 'error' });
-return;
-  }
-  setSending(true)
-
-  var myHeaders = new Headers();
-myHeaders.append("Content-Type", "application/json");
-
-const recAmount = parseFloat(swapAmount)* parseFloat(instantRate)
-const receiveCoinAmt = recAmount.toFixed(6)
-const randomId = guidGenerator();
-
-const bd = JSON.stringify({
-  "equipmentNo": "Zsda3529430s90468518",
-  "sessionUuid": "",
-  "sourceType": "ANDROID",
-  "userNo": "",
-  "orderId": randomId,
-  "depositCoinCode": fromchainvalue,
-  "receiveCoinCode": "HODL",
-  "depositCoinAmt": swapAmount,
-  "receiveCoinAmt": receiveCoinAmt,
-  "receiveSwftAmt": receiveCoinAmt,
-  "destinationAddr": receivingAccount,
-  "refundAddr": refundAddress,
-  "sourceFlag": "HODL",
-  "developerId": ""
-});
-
-
-
-var requestOptions = {
-  method: 'POST',
-  headers: myHeaders,
-  body: bd,
-  redirect: 'follow'
-};
-
-fetch("http://localhost:8085/accountExchange", requestOptions)
-  .then(response => response.json())
-  .then(result => {
-    setSending(false)
-    const resCode = result.resCode
-    if(resCode == 800){
-      const data = result.data
-      var paddress = data["platformAddr"]
-      if(paddress.includes("#")){
-        const splitArray = paddress.split("#")
-        paddress = splitArray[0]
-        const memo = splitArray[1]
-        setmemo(memo)
-
-      }
-
-     
-      const receiveCoinAmt = data["receiveCoinAmt"]
-
-      setPayInAddress(paddress)
-      setreceiveCoinAmt(receiveCoinAmt)
-      setPaying(true)
-      addToast('Payment generated', { appearance: 'success' });
-
+    if (swapAmount < depositMin) {
+      addToast('Amount less than minimum', { appearance: 'error' });
+      return;
     }
-    console.log(result)})
-  .catch(error => {
-     setSending(false)
-    console.log('error', error)});
-}
+
+    if (swapAmount > depositMax) {
+      addToast('Amount more than maximum', { appearance: 'error' });
+      return;
+    }
+    setSending(true)
+    var toCode = getToAssetCode(tochainvalue)
+    var toName = getToAssetName(tochainvalue)
+    var receiveAddress = receivingAccount
+    if (toCode == "wHODL") {
+      toCode = "HODL"
+      const mm = between(10000000, 99999999).toString()
+      const payIninfo = Moralis.Object.extend("bvPayments");
+      const payinfo = new payIninfo();
+      payinfo.set('payOutChain', toName);
+      payinfo.set('payInChain', 'stellar');
+      payinfo.set('payInAccount', BRIDGE_ADDRESS);
+      payinfo.set('payInMemo', mm);
+      payinfo.set('payOutAddress', receivingAccount);
+      payinfo.set('txnStatus', 'pending');
+      payinfo.save()
+      receiveAddress = BRIDGE_ADDRESS + "#" + mm
+    }
+
+    var myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/json");
+
+    const recAmount = parseFloat(swapAmount) * parseFloat(instantRate)
+    const receiveCoinAmt = recAmount.toFixed(6)
+    const randomId = guidGenerator();
+
+    const bd = JSON.stringify({
+      "equipmentNo": "Zsda3529430s90468518",
+      "sessionUuid": "",
+      "sourceType": "ANDROID",
+      "userNo": "",
+      "orderId": randomId,
+      "depositCoinCode": fromchainvalue,
+      "receiveCoinCode": toCode,
+      "depositCoinAmt": swapAmount,
+      "receiveCoinAmt": receiveCoinAmt,
+      "receiveSwftAmt": receiveCoinAmt,
+      "destinationAddr": receiveAddress,
+      "refundAddr": refundAddress,
+      "sourceFlag": "HODL",
+      "developerId": ""
+    });
+
+    var requestOptions = {
+      method: 'POST',
+      headers: myHeaders,
+      body: bd,
+      redirect: 'follow'
+    };
+
+    fetch("http://localhost:8085/accountExchange", requestOptions)
+      .then(response => response.json())
+      .then(result => {
+        setSending(false)
+        const resCode = result.resCode
+        if (resCode == 800) {
+          const data = result.data
+          var paddress = data["platformAddr"]
+          if (paddress.includes("#")) {
+            const splitArray = paddress.split("#")
+            paddress = splitArray[0]
+            const memo = splitArray[1]
+            setmemo(memo)
+
+          }
+
+
+          const receiveCoinAmt = data["receiveCoinAmt"]
+
+          setPayInAddress(paddress)
+          setreceiveCoinAmt(receiveCoinAmt)
+          setPaying(true)
+          addToast('Payment generated', { appearance: 'success' });
+
+        }
+        console.log(result)
+      })
+      .catch(error => {
+        setSending(false)
+        console.log('error', error)
+      });
+  }
 
 
 
@@ -387,7 +426,7 @@ fetch("http://localhost:8085/accountExchange", requestOptions)
   const sendRequest = async () => {
     const payin = await getpayAddress()
     setSending(true)
-    const mm = between(10000000, 99999999).toString()
+    const mm = memo; // between(10000000, 99999999).toString()
 
     const payIninfo = Moralis.Object.extend("bvPayments");
     const payinfo = new payIninfo();
@@ -400,17 +439,11 @@ fetch("http://localhost:8085/accountExchange", requestOptions)
     payinfo.save()
       .then((payinfo) => {
         console.log(payinfo)
-        setPayInAddress(payin);
-        setmemo(mm)
+        //setmemo(mm)
         setlisten(true)
 
-        if (isRabetPayment) {
-          makePaymentTransfer(payin, mm)
-        } else {
-          setSending(false);
-          setPaying(true);
-
-        }
+        // if (isRabetPayment) {
+        makePaymentTransfer(payin, mm)
 
 
 
@@ -426,6 +459,7 @@ fetch("http://localhost:8085/accountExchange", requestOptions)
         addToast('Failed to create new object, with error code: ' + error.message, { appearance: 'error' });
       });
   }
+
 
   function connect(wallet) {
     window.ethereum
@@ -490,7 +524,8 @@ fetch("http://localhost:8085/accountExchange", requestOptions)
       window.rabet
         .connect()
         .then(result => {
-          sendRequest()
+          //sendRequest()
+          makePaymentTransfer(result.publicKey, memo)
 
         })
         .catch(error => {
@@ -507,10 +542,10 @@ fetch("http://localhost:8085/accountExchange", requestOptions)
 
 
   const makePaymentTransfer = async (sender_public_key, memo) => {
-    const destination = await getpayAddress()
+    const destination = pay_in_address //await getpayAddress()
+    console.log("memo", memo)
 
-
-    var sendingAsset = new StellarSdk.Asset(code, issuer);
+    var sendingAsset = new StellarSdk.Asset.native()
 
     const [{ max_fee: { mode: fee } }, distributionAccount] = await Promise.all([
       server.feeStats(),
@@ -729,7 +764,7 @@ fetch("http://localhost:8085/accountExchange", requestOptions)
                       </div>
 
 
-                      {instantRate!=''?<div>
+                      {instantRate != '' ? <div>
                         <p>Exchange Rate: {instantRate}</p>
                         <p>chainFee: {chainFee}</p>
                         <p>depositCoinFeeRate: {depositCoinFeeRate}</p>
@@ -738,7 +773,7 @@ fetch("http://localhost:8085/accountExchange", requestOptions)
                         <p>isDiscount: {isDiscount}</p>
                         <p>minerFee: {minerFee}</p>
                         <p>receiveCoinFee: {receiveCoinFee}</p>
-                      </div>:<div/>}
+                      </div> : <div />}
 
 
                       <div className="space-y-10">
@@ -800,12 +835,12 @@ fetch("http://localhost:8085/accountExchange", requestOptions)
                               className="form-control"
                             />
 
-                              </div>
-                              </div>
-                              </div>
-                           
+                          </div>
+                        </div>
+                      </div>
 
-                      
+
+
 
 
                       {fromchainvalue != 'stellar' || isRabetPayment ? <div className="space-y-10">
@@ -844,13 +879,12 @@ fetch("http://localhost:8085/accountExchange", requestOptions)
                           <span className="visually">
                             Creating request ...
                           </span>
-                        </div> : <div><a
-                                href="#"
-                                onClick={makeExchange}
-                                className="btn btn-grad"
-                              >
-                                Send Request
-                              </a>
+                        </div> : <div><button
+                          onClick={makeExchange}
+                          className="btn btn-grad"
+                        >
+                          Send Request
+                        </button>
                         </div>}
 
 
@@ -886,66 +920,66 @@ fetch("http://localhost:8085/accountExchange", requestOptions)
                     <div className="space-y-20 mb-0">
 
 
+                      <div>
                         <div>
-                          <div>
                           <p>Pay Amount: {swapAmount} {fromchainvalue}</p>
                           <p>Receive Amount: {receiveCoinAmt} HODL</p>
 
-                            </div>
-
-                          <div className="space-y-10">
-                            <span className="nameInput">
-                              Send payment to this address
-                            </span>
-                            <div>
-
-
-                              <div className="row">
-                                <div className="col-10">
-                                  <div className="space-y-10">
-                                    <input
-                                      type="text"
-                                      value={pay_in_address}
-                                      disabled
-                                      className="form-control"
-                                    />
-                                  </div>
-                                </div>
-                                <a href="#" onClick={() => setShowPayQR(!showPayQr)} className="col-2">Show QR
-                                </a>
-                                {showPayQr ? <QRCode value={pay_in_address} /> : <div />}
-
-                              </div>
-
-                            </div>
-                          </div>
-
-
-                          <div className="space-y-10">
-                            <span className="nameInput">Memo( Required)</span>
-                            <div>
-                              <div className="row">
-                                <div className="col-10">
-
-                                  <div className="space-y-10">
-                                    <input
-                                      type="text"
-                                      value={memo}
-                                      disabled
-                                      className="form-control"
-                                    />
-                                  </div>
-                                </div>
-                                <a href='#' onClick={() => setShowmemoQR(!showMemoRq)} className="col-2">Show QR
-                                </a>
-                                {showMemoRq ? <QRCode value={memo} /> : <div />}
-
-
-                              </div>
-                            </div>
-                          </div>
-
                         </div>
+
+                        <div className="space-y-10">
+                          <span className="nameInput">
+                            Send payment to this address
+                          </span>
+                          <div>
+
+
+                            <div className="row">
+                              <div className="col-10">
+                                <div className="space-y-10">
+                                  <input
+                                    type="text"
+                                    value={pay_in_address}
+                                    disabled
+                                    className="form-control"
+                                  />
+                                </div>
+                              </div>
+                              <a href="#" onClick={() => setShowPayQR(!showPayQr)} className="col-2">Show QR
+                              </a>
+                              {showPayQr ? <QRCode value={pay_in_address} /> : <div />}
+
+                            </div>
+
+                          </div>
+                        </div>
+
+
+                        <div className="space-y-10">
+                          <span className="nameInput">Memo( Required)</span>
+                          <div>
+                            <div className="row">
+                              <div className="col-10">
+
+                                <div className="space-y-10">
+                                  <input
+                                    type="text"
+                                    value={memo}
+                                    disabled
+                                    className="form-control"
+                                  />
+                                </div>
+                              </div>
+                              <a href='#' onClick={() => setShowmemoQR(!showMemoRq)} className="col-2">Show QR
+                              </a>
+                              {showMemoRq ? <QRCode value={memo} /> : <div />}
+
+
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
 
                       <div className="space-y-10">
                         <p className="nameInput">Tokens will be sent to</p>
@@ -966,6 +1000,17 @@ fetch("http://localhost:8085/accountExchange", requestOptions)
                           >
                             Back
                           </a>
+
+                          <a
+                            style={{ margin: 10 }}
+                            href="#"
+                            onClick={makePayment}
+                            className="btn btn-grad"
+                          >
+                            Pay with Rabet
+                          </a>
+
+
 
 
 
