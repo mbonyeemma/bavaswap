@@ -36,10 +36,10 @@ function SwiftUI() {
   Moralis.start({ serverUrl, appId })
   const [isPaying, setPaying] = useState(false);
   const [wrappedTokens, setWrappedToken] = useState([
+    ['HODL', 'stellar'],
     ['wHODL', 'polygon'],
     ['wHODL', 'bsc'],
     ['wHODL', 'eth'],
-    ['HODL', 'stellar']
   ]);
   const [hodl, setHodl] = useState([
     ['HODL', 'stellar'],
@@ -53,8 +53,8 @@ function SwiftUI() {
     ['AVAX', 'AVAX']
   ]);
   const [addressInfo, setAddressObject] = useState([]);
-  const [chainFrom, setFromChain] = useState(hodl);
-  const [chainto, setToChain] = useState(wrappedTokens);
+  const [chainFrom, setFromChain] = useState(wrappedTokens);
+  const [chainto, setToChain] = useState(hodl);
   const [receivingAccount, setReceivingAccount] = useState('');
   const [fromchainvalue, setFromchainValue] = useState('');
   const [tochainvalue, setTochainvalue] = useState('stellar');
@@ -84,7 +84,6 @@ function SwiftUI() {
   const [receiveCoinFee, setreceiveCoinFee] = useState('');
   const [refundAddress, setRefundAddress] = useState('');
   const [receiveCoinAmt, setreceiveCoinAmt] = useState('');
-  const [reqMemo, setreqMemo] = useState('');
 
   const [swiftData, setswiftData] = useState([]);
 
@@ -92,11 +91,12 @@ function SwiftUI() {
 
 
   const MakeItem = X => {
-    return <option value={X['coinCode']} >{X['coinCode']} - {X['coinName']}</option>;
+    const v = X['coinCode'] + ":" + X['coinName']
+    return <option value={v} >{X['coinCode']} - {X['coinName']}</option>;
   };
   const MakeHodlItem = X => {
     const v = X[0] + ":" + X[1]
-    return <option value={v}>{X[0]} ( {X[1]} )</option>;
+    return <option value={v}>{X[0]} -{X[1]} </option>;
   };
 
   const getToAssetName = (data) => {
@@ -108,6 +108,14 @@ function SwiftUI() {
     const myArray = data.split(":");
     return myArray[0]
   }
+  const getFromAssetCode = (data) => {
+    const myArray = data.split(":");
+    return myArray[0]
+  }
+  const getFromAssetName = (data) => {
+    const myArray = data.split(":");
+    return myArray[1]
+  }
 
   const showPayment = () => {
     setReceived('')
@@ -118,7 +126,7 @@ function SwiftUI() {
       return;
     }
     if (fromchainvalue == 'stellar') {
-      sendRequest();
+      swapFromStellarRequest();
     } else {
       setPaying(true);
     }
@@ -126,9 +134,10 @@ function SwiftUI() {
   };
   useEffect(() => {
     cancel();
-    //getAccounts()
+    getAccounts()
     getSWIFTAssets()
   }, []);
+
   const cancel = () => {
     clearInterval(intervalId);
     setPaying(false);
@@ -136,8 +145,6 @@ function SwiftUI() {
 
 
   const getSWIFTAssets = async () => {
-
-
     var myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
@@ -213,7 +220,30 @@ function SwiftUI() {
     };
     return (S4() + S4() + "-" + S4() + "-" + S4() + "-" + S4() + "-" + S4() + S4() + S4());
   }
+
   const makeExchange = () => {
+    var toCode = getToAssetCode(tochainvalue)
+    var toName = getToAssetName(tochainvalue)
+
+    var fromCode = getFromAssetCode(fromchainvalue)
+    var fromName = getFromAssetName(fromchainvalue)
+
+    if(fromCode == "XLM" || fromCode == "HODL" ){
+      setreceiveCoinAmt(swapAmount)
+      swapFromStellarRequest()
+      return;
+    }
+
+    if(fromCode == "wHODL"  ){
+      if(toCode == "wHODL" || toCode== "HODL"){
+        burnTokens()
+      }else{
+        addToast('Swap pair not supported', { appearance: 'error' });
+      }
+      return;
+    }
+ 
+    
 
     if (swapAmount < depositMin) {
       addToast('Amount less than minimum', { appearance: 'error' });
@@ -225,8 +255,7 @@ function SwiftUI() {
       return;
     }
     setSending(true)
-    var toCode = getToAssetCode(tochainvalue)
-    var toName = getToAssetName(tochainvalue)
+
     var receiveAddress = receivingAccount
     if (toCode == "wHODL") {
       toCode = "HODL"
@@ -256,7 +285,7 @@ function SwiftUI() {
       "sourceType": "ANDROID",
       "userNo": "",
       "orderId": randomId,
-      "depositCoinCode": fromchainvalue,
+      "depositCoinCode": fromCode,
       "receiveCoinCode": toCode,
       "depositCoinAmt": swapAmount,
       "receiveCoinAmt": receiveCoinAmt,
@@ -411,11 +440,12 @@ function SwiftUI() {
   }
 
   const getpayAddress = async () => {
+    const fromChain = getFromAssetName(fromchainvalue)
     for (let i = 0; i < addressInfo.length; i++) {
       const object = addressInfo[i];
       const chain = object.get('chain')
       const address = object.get('address')
-      if (chain == fromchainvalue) {
+      if (chain == fromChain) {
         setPayInAddress(address)
         return address
       }
@@ -423,15 +453,17 @@ function SwiftUI() {
     return ''
   }
 
-  const sendRequest = async () => {
+  const swapFromStellarRequest = async () => {
     const payin = await getpayAddress()
+    const fromChain = getFromAssetName(fromchainvalue)
+    const toChain = getToAssetName(tochainvalue)
     setSending(true)
-    const mm = memo; // between(10000000, 99999999).toString()
+    const mm = between(10000000, 99999999).toString()
 
     const payIninfo = Moralis.Object.extend("bvPayments");
     const payinfo = new payIninfo();
-    payinfo.set('payOutChain', tochainvalue);
-    payinfo.set('payInChain', fromchainvalue);
+    payinfo.set('payOutChain', toChain);
+    payinfo.set('payInChain', fromChain);
     payinfo.set('payInAccount', payin);
     payinfo.set('payInMemo', mm);
     payinfo.set('payOutAddress', receivingAccount);
@@ -439,27 +471,25 @@ function SwiftUI() {
     payinfo.save()
       .then((payinfo) => {
         console.log(payinfo)
-        //setmemo(mm)
+        setPayInAddress(payin);
+        setmemo(mm)
         setlisten(true)
 
-        // if (isRabetPayment) {
-        makePaymentTransfer(payin, mm)
-
-
-
+        if(isRabetPayment){
+          makePaymentTransfer(payin, mm)
+        }else{
+          setSending(false);
+          setPaying(true);
+        }
         var interId = setInterval(function () {
           getRequest(mm, interId);
         }, 10000);
         setIntervalId(interId);
-
-
-
       }, (error) => {
         setSending(false)
         addToast('Failed to create new object, with error code: ' + error.message, { appearance: 'error' });
       });
   }
-
 
   function connect(wallet) {
     window.ethereum
@@ -524,7 +554,6 @@ function SwiftUI() {
       window.rabet
         .connect()
         .then(result => {
-          //sendRequest()
           makePaymentTransfer(result.publicKey, memo)
 
         })
@@ -644,7 +673,10 @@ function SwiftUI() {
     }
   }
 
-  async function burnTokens(destAddress, transferAmount, memo) {
+  async function burnTokens(transferAmount) {
+    var fromChain = getFromAssetName(fromchainvalue)
+    const tochain = getToAssetName(tochainvalue)
+    
     if (swapAmount == '') {
       addToast('enter a valid amount', { appearance: 'error' });
       return;
@@ -653,7 +685,7 @@ function SwiftUI() {
     setSending(true)
 
 
-    const contractAddress = getAddress(fromchainvalue);
+    const contractAddress = getAddress(fromChain);
     if (window.ethereum) {
 
       const web3 = new Web3(window.ethereum);
@@ -662,8 +694,8 @@ function SwiftUI() {
       const chainIdDec = await web3.eth.getChainId();
       console.log(chainIdHex);
       console.log(chainIdDec);
-      if (chainIdDec != getChainid(fromchainvalue)) {
-        await switchNetwork(getChainid(fromchainvalue))
+      if (chainIdDec != getChainid(fromChain)) {
+        await switchNetwork(getChainid(fromChain))
 
       }
 
@@ -676,7 +708,7 @@ function SwiftUI() {
       transferAmount = parseFloat(transferAmount);
       const sendingAmount = weiValue
       const xlmAddress = receivingAccount
-      contract.methods.claimBurn(xlmAddress, sendingAmount, fromchainvalue, tochainvalue).send({
+      contract.methods.claimBurn(xlmAddress, sendingAmount, fromChain, tochain).send({
         from: window.web3.currentProvider.selectedAddress
       })
         .then(transactionHash => {
@@ -688,8 +720,6 @@ function SwiftUI() {
             getRequest(hash, intVal);
           }, 10000);
           setIntervalId(intVal);
-
-
         })
         .then(receipt => {
 
@@ -735,6 +765,7 @@ function SwiftUI() {
                               value={fromchainvalue}
                               onChange={handlefromChange}
                             >
+                              {chainFrom.map(MakeHodlItem)}
                               {swiftData.map(MakeItem)}
 
                             </select>
@@ -757,7 +788,7 @@ function SwiftUI() {
                               value={tochainvalue}
                               onChange={handleToChange}
                             >
-                              {chainFrom.map(MakeHodlItem)}
+                              {chainto.map(MakeHodlItem)}
                             </select>
                           </div>
                         </div>
@@ -794,7 +825,7 @@ function SwiftUI() {
                           <div className="col-1">
 
 
-                            {tochainvalue == 'stellar' ? <a
+                            {getFromAssetName(tochainvalue) == 'stellar' ? <a
                               href="#"
                               onClick={() =>
                                 OpenRabet('ethAddress')}
@@ -922,8 +953,8 @@ function SwiftUI() {
 
                       <div>
                         <div>
-                          <p>Pay Amount: {swapAmount} {fromchainvalue}</p>
-                          <p>Receive Amount: {receiveCoinAmt} HODL</p>
+                          <p>Pay Amount: {swapAmount} {getFromAssetCode(fromchainvalue)}</p>
+                          <p>Receive Amount: {receiveCoinAmt} {getToAssetCode(tochainvalue)}</p>
 
                         </div>
 

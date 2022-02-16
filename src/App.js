@@ -10,7 +10,7 @@ function App() {
     <div className="App">
                 <ToastProvider>
 
-            <SwiftUI />
+                <SwiftUI />
             </ToastProvider>
 
     </div>

@@ -87,13 +87,7 @@ function Index({ history }) {
   };
 
 
-  const swapUi = () => {
-    setReceivingAccount('')
-    setFromChain(chainto);
-    setToChain(chainFrom);
-    setFromchainValue(tochainvalue)
-    setTochainvalue(fromchainvalue)
-  };
+  
   const showPayment = () => {
     setReceived('')
     setCompleted('')
@@ -256,18 +250,11 @@ function Index({ history }) {
         }else{
           setSending(false);
           setPaying(true);
-
         }
-
-
-
         var interId = setInterval(function () {
           getRequest(mm, interId);
         }, 10000);
         setIntervalId(interId);
-
-
-
       }, (error) => {
         setSending(false)
         addToast('Failed to create new object, with error code: ' + error.message, { appearance: 'error' });
@@ -456,7 +443,7 @@ function Index({ history }) {
     }
   }
 
-  async function burnTokens(destAddress, transferAmount, memo) {
+  async function burnTokens(transferAmount) {
     if (swapAmount == '') {
       addToast('enter a valid amount', { appearance: 'error' });
       return;
