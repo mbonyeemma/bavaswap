@@ -141,6 +141,8 @@ function SwiftUI() {
   const cancel = () => {
     clearInterval(intervalId);
     setPaying(false);
+    setmemo("")
+    setreceiveCoinAmt("")
   };
 
 
@@ -229,9 +231,12 @@ function SwiftUI() {
     var fromName = getFromAssetName(fromchainvalue)
 
     if(fromCode == "XLM" || fromCode == "HODL" ){
-      setreceiveCoinAmt(swapAmount)
-      swapFromStellarRequest()
-      return;
+      //setreceiveCoinAmt(swapAmount)
+      if(toCode == "wHODL"){
+        swapFromStellarRequest()
+        return;
+      }
+
     }
 
     if(fromCode == "wHODL"  ){
@@ -245,12 +250,13 @@ function SwiftUI() {
  
     
 
-    if (swapAmount < depositMin) {
+    if (parseFloat(swapAmount) < parseFloat(depositMin)) {
+      console.log(swapAmount+", deposit "+depositMin)
       addToast('Amount less than minimum', { appearance: 'error' });
       return;
     }
 
-    if (swapAmount > depositMax) {
+    if (parseFloat(swapAmount) > parseFloat(depositMax)) {
       addToast('Amount more than maximum', { appearance: 'error' });
       return;
     }
@@ -316,7 +322,6 @@ function SwiftUI() {
             paddress = splitArray[0]
             const memo = splitArray[1]
             setmemo(memo)
-
           }
 
 
@@ -349,8 +354,8 @@ function SwiftUI() {
   const handlefromChange = e => {
     var v = e.target.value;
     setFromchainValue(v);
-
-    getBaseInfo(v)
+    var fromCode = getFromAssetCode(v)
+    getBaseInfo(fromCode)
   };
 
   const updateRefundAcc = e => {
@@ -986,7 +991,7 @@ function SwiftUI() {
                         </div>
 
 
-                        <div className="space-y-10">
+                        {memo!=""?<div className="space-y-10">
                           <span className="nameInput">Memo( Required)</span>
                           <div>
                             <div className="row">
@@ -1005,10 +1010,9 @@ function SwiftUI() {
                               </a>
                               {showMemoRq ? <QRCode value={memo} /> : <div />}
 
-
                             </div>
                           </div>
-                        </div>
+                        </div>:<div/>}
 
                       </div>
 
@@ -1032,14 +1036,14 @@ function SwiftUI() {
                             Back
                           </a>
 
-                          <a
+                          {getFromAssetName(fromchainvalue)=='stellar'?<a
                             style={{ margin: 10 }}
                             href="#"
                             onClick={makePayment}
                             className="btn btn-grad"
                           >
                             Pay with Rabet
-                          </a>
+                          </a>:<span/>}
 
 
 
