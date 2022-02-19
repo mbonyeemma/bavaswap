@@ -42,8 +42,8 @@ function SwiftUI() {
     ['wHODL', 'eth'],
   ]);
   const [hodl, setHodl] = useState([
-    ['HODL', 'stellar'],
     ['wHODL', 'polygon'],
+    ['HODL', 'stellar'],
     ['wHODL', 'bsc'],
     ['wHODL', 'eth'],
     ['ETH', 'ETH'],
@@ -56,8 +56,8 @@ function SwiftUI() {
   const [chainFrom, setFromChain] = useState(wrappedTokens);
   const [chainto, setToChain] = useState(hodl);
   const [receivingAccount, setReceivingAccount] = useState('');
-  const [fromchainvalue, setFromchainValue] = useState('');
-  const [tochainvalue, setTochainvalue] = useState('stellar');
+  const [fromchainvalue, setFromchainValue] = useState('HODL:stellar');
+  const [tochainvalue, setTochainvalue] = useState('wHODL:polygon');
   const { addToast } = useToasts();
   const [hasMetamask, setHasMetamask] = useState(false);
   const [sending, setSending] = useState(false);
@@ -174,9 +174,15 @@ function SwiftUI() {
   const getBaseInfo = (fromchain) => {
     setinstantRate('')
     var toCode = getToAssetCode(tochainvalue)
+    var fromCode = getFromAssetCode(fromchainvalue)
     if (toCode == "wHODL") {
       toCode = "HODL"
     }
+
+    if(fromCode == "wHODL"){
+      return
+    }
+    
     var myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
@@ -191,7 +197,7 @@ function SwiftUI() {
       body: raw,
       redirect: 'follow'
     };
-
+    
     fetch("http://localhost:8085/getBaseInfo", requestOptions)
       .then(response => response.json())
       .then(result => {

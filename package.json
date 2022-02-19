@@ -28,7 +28,6 @@
     "test": "react-app-rewired test",
     "eject": "react-scripts eject"
   },
-  "proxy": "https://www.swftc.info",
   "eslintConfig": {
     "extends": [
       "react-app",
