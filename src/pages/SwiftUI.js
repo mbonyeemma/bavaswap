@@ -84,6 +84,7 @@ function SwiftUI() {
   const [receiveCoinFee, setreceiveCoinFee] = useState('');
   const [refundAddress, setRefundAddress] = useState('');
   const [receiveCoinAmt, setreceiveCoinAmt] = useState('');
+  const [userId, setUserId] = useState('abc12345678');
 
   const [swiftData, setswiftData] = useState([]);
 
@@ -136,6 +137,7 @@ function SwiftUI() {
     cancel();
     getAccounts()
     getSWIFTAssets()
+    getTransactions()
   }, []);
 
   const cancel = () => {
@@ -170,6 +172,89 @@ function SwiftUI() {
       .catch(error => console.log('error', error));
   }
 
+  const queryOrderState = async (orderId, intVal) => {
+    var myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/json");
+
+    var raw = JSON.stringify({
+      "orderId": orderId,
+      "equipmentNo": "Zsda3529430s90468518",
+      "sourceType": "ANDROID"
+    });
+
+    var requestOptions = {
+      method: 'POST',
+      headers: myHeaders,
+      body: raw,
+      redirect: 'follow'
+    };
+
+    fetch("http://localhost:8085/queryOrderState", requestOptions)
+      .then(response => response.json())
+      .then(result => {
+        const response = result.data
+        const transactionId = response.transactionId
+        const detailState = response.detailState
+        var status = 'pending'
+        if ((transactionId != undefined && transactionId != null) && detailState == 'receive_complete') {
+          status = 'complete'
+        }
+        if (detailState != "wait_deposit_send") {
+          clearInterval(intVal);
+          status = detailState
+          console.log(result.data)
+          updateTxStatus(orderId, transactionId, status)
+        }
+
+
+        // if success update the order on moralis
+
+      })
+      .catch(error => console.log('error', error));
+  }
+
+  // get all user transactions
+  const getTransactions = async () => {
+    const bvPayments = Moralis.Object.extend('bvPayments');
+    const query = new Moralis.Query(bvPayments);
+    query.equalTo("userId", userId);
+    const result = await query.find();
+
+    for (let i = 0; i < result.length; i++) {
+      const object = result[i];
+      const chain = object.get('txnStatus')
+      const payInChain = object.get('payInChain')
+      console.log(payInChain)
+
+
+    }
+
+
+  }
+
+  const updateTxStatus = async (orderId, payOutHash, status) => {
+    const bvPayments = Moralis.Object.extend('bvPayments');
+    const query = new Moralis.Query(bvPayments);
+    query.equalTo("orderId", orderId);
+    query.equalTo("txnStatus", 'pending');
+    const result = await query.find();
+
+    if (result.length > 0) {
+      const saveInfo = new bvPayments()
+      saveInfo.set("id", result[0].id)
+      saveInfo.set("txnStatus", status)
+      saveInfo.set("payOutHash", payOutHash)
+      await saveInfo.save();
+      addToast("Transaction status updated", { appearance: 'success' });
+
+    } else {
+      console.log("not found")
+    }
+
+  }
+
+
+
 
   const getBaseInfo = (fromchain) => {
     setinstantRate('')
@@ -179,10 +264,11 @@ function SwiftUI() {
       toCode = "HODL"
     }
 
-    if(fromCode == "wHODL"){
-      return
+    if (fromCode == "wHODL") {
+      return;
     }
-    
+
+
     var myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
@@ -197,7 +283,7 @@ function SwiftUI() {
       body: raw,
       redirect: 'follow'
     };
-    
+
     fetch("http://localhost:8085/getBaseInfo", requestOptions)
       .then(response => response.json())
       .then(result => {
@@ -236,28 +322,28 @@ function SwiftUI() {
     var fromCode = getFromAssetCode(fromchainvalue)
     var fromName = getFromAssetName(fromchainvalue)
 
-    if(fromCode == "XLM" || fromCode == "HODL" ){
+    if (fromCode == "XLM" || fromCode == "HODL") {
       //setreceiveCoinAmt(swapAmount)
-      if(toCode == "wHODL"){
+      if (toCode == "wHODL") {
         swapFromStellarRequest()
         return;
       }
 
     }
 
-    if(fromCode == "wHODL"  ){
-      if(toCode == "wHODL" || toCode== "HODL"){
+    if (fromCode == "wHODL") {
+      if (toCode == "wHODL" || toCode == "HODL") {
         burnTokens()
-      }else{
+      } else {
         addToast('Swap pair not supported', { appearance: 'error' });
       }
       return;
     }
- 
-    
+
+
 
     if (parseFloat(swapAmount) < parseFloat(depositMin)) {
-      console.log(swapAmount+", deposit "+depositMin)
+      console.log(swapAmount + ", deposit " + depositMin)
       addToast('Amount less than minimum', { appearance: 'error' });
       return;
     }
@@ -267,12 +353,12 @@ function SwiftUI() {
       return;
     }
     setSending(true)
+    const payIninfo = Moralis.Object.extend("bvPayments");
 
     var receiveAddress = receivingAccount
+    const randomId = guidGenerator();
     if (toCode == "wHODL") {
-      toCode = "HODL"
       const mm = between(10000000, 99999999).toString()
-      const payIninfo = Moralis.Object.extend("bvPayments");
       const payinfo = new payIninfo();
       payinfo.set('payOutChain', toName);
       payinfo.set('payInChain', 'stellar');
@@ -280,7 +366,14 @@ function SwiftUI() {
       payinfo.set('payInMemo', mm);
       payinfo.set('payOutAddress', receivingAccount);
       payinfo.set('txnStatus', 'pending');
+      payinfo.set('fromCode', fromCode);
+      payinfo.set('toCode', toCode);
+      payinfo.set('userId', userId);
+      payinfo.set('source', "SWIFT");
+      payinfo.set('orderId', randomId);
+
       payinfo.save()
+      toCode = "HODL"
       receiveAddress = BRIDGE_ADDRESS + "#" + mm
     }
 
@@ -289,7 +382,7 @@ function SwiftUI() {
 
     const recAmount = parseFloat(swapAmount) * parseFloat(instantRate)
     const receiveCoinAmt = recAmount.toFixed(6)
-    const randomId = guidGenerator();
+
 
     const bd = JSON.stringify({
       "equipmentNo": "Zsda3529430s90468518",
@@ -323,20 +416,46 @@ function SwiftUI() {
         if (resCode == 800) {
           const data = result.data
           var paddress = data["platformAddr"]
+          var swiftMM = ""
           if (paddress.includes("#")) {
             const splitArray = paddress.split("#")
             paddress = splitArray[0]
             const memo = splitArray[1]
+            swiftMM = memo
             setmemo(memo)
           }
-
-
           const receiveCoinAmt = data["receiveCoinAmt"]
+          const orderId = data["orderId"]
+
+          const payinfoSwift = new payIninfo();
+          payinfoSwift.set('payOutChain', toName);
+          payinfoSwift.set('payInChain', fromCode);
+          payinfoSwift.set('payInAccount', paddress);
+          payinfoSwift.set('payInMemo', swiftMM);
+          payinfoSwift.set('payOutAddress', receiveAddress);
+          payinfoSwift.set('txnStatus', 'pending');
+          payinfoSwift.set('receivedAmount', swapAmount);
+          payinfoSwift.set('payOutAmount', receiveCoinAmt);
+          payinfoSwift.set('orderId', orderId);
+          payinfoSwift.set('fromCode', fromCode);
+          payinfoSwift.set('toCode', toCode);
+          payinfoSwift.set('userId', userId);
+          payinfoSwift.set('source', "SWIFT");
+          payinfoSwift.save()
+
+
 
           setPayInAddress(paddress)
           setreceiveCoinAmt(receiveCoinAmt)
           setPaying(true)
           addToast('Payment generated', { appearance: 'success' });
+
+          const intVal = setInterval(function () {
+            queryOrderState(orderId, intVal);
+          }, 10000);
+          setIntervalId(intVal);
+
+
 
         }
         console.log(result)
@@ -384,6 +503,7 @@ function SwiftUI() {
 
     }
   };
+
 
 
 
@@ -468,6 +588,8 @@ function SwiftUI() {
     const payin = await getpayAddress()
     const fromChain = getFromAssetName(fromchainvalue)
     const toChain = getToAssetName(tochainvalue)
+    const fromCode = getFromAssetCode(fromchainvalue)
+    const toCode = getToAssetCode(tochainvalue)
     setSending(true)
     const mm = between(10000000, 99999999).toString()
 
@@ -479,6 +601,11 @@ function SwiftUI() {
     payinfo.set('payInMemo', mm);
     payinfo.set('payOutAddress', receivingAccount);
     payinfo.set('txnStatus', 'pending');
+    payinfo.set('fromCode', fromCode);
+    payinfo.set('toCode', toCode);
+    payinfo.set('userId', userId);
+    payinfo.set('source', "wHODL");
+
     payinfo.save()
       .then((payinfo) => {
         console.log(payinfo)
@@ -486,9 +613,9 @@ function SwiftUI() {
         setmemo(mm)
         setlisten(true)
 
-        if(isRabetPayment){
+        if (isRabetPayment) {
           makePaymentTransfer(payin, mm)
-        }else{
+        } else {
           setSending(false);
           setPaying(true);
         }
@@ -687,7 +814,7 @@ function SwiftUI() {
   async function burnTokens(transferAmount) {
     var fromChain = getFromAssetName(fromchainvalue)
     const tochain = getToAssetName(tochainvalue)
-    
+
     if (swapAmount == '') {
       addToast('enter a valid amount', { appearance: 'error' });
       return;
@@ -997,7 +1124,7 @@ function SwiftUI() {
                         </div>
 
 
-                        {memo!=""?<div className="space-y-10">
+                        {memo != "" ? <div className="space-y-10">
                           <span className="nameInput">Memo( Required)</span>
                           <div>
                             <div className="row">
@@ -1018,7 +1145,7 @@ function SwiftUI() {
 
                             </div>
                           </div>
-                        </div>:<div/>}
+                        </div> : <div />}
 
                       </div>
 
@@ -1042,14 +1169,14 @@ function SwiftUI() {
                             Back
                           </a>
 
-                          {getFromAssetName(fromchainvalue)=='stellar'?<a
+                          {getFromAssetName(fromchainvalue).toLowerCase() == 'stellar' ? <a
                             style={{ margin: 10 }}
                             href="#"
                             onClick={makePayment}
                             className="btn btn-grad"
                           >
                             Pay with Rabet
-                          </a>:<span/>}
+                          </a> : <span />}
 
 
 
