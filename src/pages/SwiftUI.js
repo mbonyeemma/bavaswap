@@ -480,7 +480,11 @@ function SwiftUI() {
     var v = e.target.value;
     setFromchainValue(v);
     var fromCode = getFromAssetCode(v)
-    getBaseInfo(fromCode)
+    if(fromCode != 'XLM' && fromCode !='HODL' && fromCode != 'wHODL'){
+      getBaseInfo(fromCode)
+
+    }
+ 
   };
 
   const updateRefundAcc = e => {
@@ -571,12 +575,13 @@ function SwiftUI() {
   }
 
   const getpayAddress = async () => {
-    const fromChain = getFromAssetName(fromchainvalue)
+    var fromChain = getFromAssetName(fromchainvalue)
+    
     for (let i = 0; i < addressInfo.length; i++) {
       const object = addressInfo[i];
       const chain = object.get('chain')
       const address = object.get('address')
-      if (chain == fromChain) {
+      if (chain.toUpperCase() == fromChain.toUpperCase()) {
         setPayInAddress(address)
         return address
       }
@@ -592,6 +597,10 @@ function SwiftUI() {
     const toCode = getToAssetCode(tochainvalue)
     setSending(true)
     const mm = between(10000000, 99999999).toString()
+
+    if(fromCode == 'XLM'){
+        getStrictSendPath(swapAmount)
+    }
 
     const payIninfo = Moralis.Object.extend("bvPayments");
     const payinfo = new payIninfo();
@@ -692,7 +701,15 @@ function SwiftUI() {
       window.rabet
         .connect()
         .then(result => {
-          makePaymentTransfer(result.publicKey, memo)
+
+          var fromCode = getFromAssetCode(fromchainvalue)
+          if (fromCode == 'XLM') {
+            sendStellarPathPayment(result.publicKey, memo)
+          } else {
+            makePaymentTransfer(result.publicKey, memo)
+          }
+
+
 
         })
         .catch(error => {
@@ -711,8 +728,13 @@ function SwiftUI() {
   const makePaymentTransfer = async (sender_public_key, memo) => {
     const destination = pay_in_address //await getpayAddress()
     console.log("memo", memo)
+    var fromCode = getFromAssetCode(fromchainvalue)
+    if (fromCode == 'XLM') {
+      var sendingAsset = new StellarSdk.Asset.native()
+    } else {
+      var sendingAsset = new StellarSdk.Asset(code, issuer)
+    }
 
-    var sendingAsset = new StellarSdk.Asset.native()
 
     const [{ max_fee: { mode: fee } }, distributionAccount] = await Promise.all([
       server.feeStats(),
@@ -877,6 +899,86 @@ function SwiftUI() {
 
 
   }
+
+  //NEW UPDATES
+  const getStrictSendPath = async (amount) => {
+    var sendingAsset = new StellarSdk.Asset.native()
+    var receivingAsset = new StellarSdk.Asset(code, issuer)
+    const dest = [receivingAsset]
+
+    try {
+      const response = await server.strictSendPaths(sendingAsset, amount, dest).call()
+      const records = response.records[0]
+      //const transPath = records['path']
+      const destination_amount = records['destination_amount']
+      setreceiveCoinAmt(destination_amount)
+
+    } catch (error) {
+      console.log(error)
+      return null
+    }
+  }
+
+  const sendStellarPathPayment = async (sender_public_key, memo) =>{
+
+
+
+    var array = [new StellarSdk.Asset.native()]
+    const receiveAmount = receiveCoinAmt
+    memo = memo.toString()
+
+
+    const amount = swapAmount.toString();
+
+
+    var sendingAsset = new StellarSdk.Asset.native()
+    var receivingAsset = new StellarSdk.Asset(code, issuer)
+
+
+
+    const [{ max_fee: { mode: fee } }, distributionAccount] = await Promise.all([
+      server.feeStats(),
+      server.loadAccount(sender_public_key),
+    ]);
+    const transaction_builder = new StellarSdk.TransactionBuilder(
+      distributionAccount,
+      {
+        fee,
+        networkPassphrase: StellarSdk.Networks.PUBLIC,
+      }
+    );
+
+
+    var transaction = new StellarSdk.TransactionBuilder(distributionAccount, {
+      fee,
+      networkPassphrase: StellarSdk.Networks.PUBLIC,
+    })
+      .addOperation(
+        StellarSdk.Operation.pathPaymentStrictSend({
+          sendAsset: sendingAsset,
+          sendAmount: amount,
+          destination: pay_in_address,
+          destAsset: receivingAsset,
+          destMin: receiveAmount,
+          path: array,
+        }),
+      )
+      .addMemo(StellarSdk.Memo.text(memo))
+    .setTimeout(300)
+     .build();
+    const xdr = transaction.toEnvelope().toXDR('base64');
+
+    try {
+      var signed_txr = await signtxnRabet(xdr);
+      postTransXDR(signed_txr);
+    } catch (err) {
+      console.log(err)
+      addToast('User cancelled request', { appearance: 'error' });
+      setSending(false);
+    }
+  }
+
+
 
 
   return (
