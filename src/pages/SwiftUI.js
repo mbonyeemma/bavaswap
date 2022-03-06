@@ -163,7 +163,7 @@ function SwiftUI() {
       redirect: 'follow'
     };
 
-    fetch("https://www.swftc.info/api/v1/queryCoinListByType", requestOptions)
+    fetch("http://localhost:8085/queryCoinListByType", requestOptions)
       .then(response => response.json())
       .then(result => {
         console.log(result.data)
@@ -189,7 +189,7 @@ function SwiftUI() {
       redirect: 'follow'
     };
 
-    fetch("http://18.116.9.199:8085/queryOrderState", requestOptions)
+    fetch("http://localhost:8085/queryOrderState", requestOptions)
       .then(response => response.json())
       .then(result => {
         const response = result.data
@@ -284,7 +284,7 @@ function SwiftUI() {
       redirect: 'follow'
     };
 
-    fetch("http://18.116.9.199:8085/getBaseInfo", requestOptions)
+    fetch("http://localhost:8085/getBaseInfo", requestOptions)
       .then(response => response.json())
       .then(result => {
         const resCode = result.resCode
@@ -408,7 +408,7 @@ function SwiftUI() {
       redirect: 'follow'
     };
 
-    fetch("http://18.116.9.199:8085/accountExchange", requestOptions)
+    fetch("http://localhost:8085/accountExchange", requestOptions)
       .then(response => response.json())
       .then(result => {
         setSending(false)
