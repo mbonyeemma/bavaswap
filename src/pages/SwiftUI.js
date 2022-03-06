@@ -15,20 +15,20 @@ import { useMoralis } from 'react-moralis';
 var StellarSdk = require('stellar-sdk');
 const server = new StellarSdk.Server("https://horizon.stellar.org");
 
-const appId = "uJ33bXMkFxCSiircX2zTTvSyCiojORvL138aA4Ei";
-const serverUrl = "https://cdn06vqwo73l.usemoralis.com:2053/server";
+const appId = "IzX2IVZvOS9VSTH5nodpU8aLPPrqXdUNGPeFN5Xy";
+const serverUrl = "https://ksmuacjdziec.usemoralis.com:2053/server";
 
 const code = "HODL"
 const issuer = "GAQEDFS2JK6JSQO53DWT23TGOLH5ZUZG4O3MNLF3CFUZWEJ6M7MMGJAV"
 var Web3 = require('web3');
-const contractAddress_polygon = "0x50d7bE8C1ab4D69cF4c487aAB01Edc168fe3aA1a"
-const contractAddress_bsc = "0xFaB9a5f8a3C20D26Af31D275f7e25b4401Dad8e1"
-const contractAddress_eth = "0xFF8cC6Abc855c93FAABCb745E135872511c834bb"
-const BRIDGE_ADDRESS = "GAVB5LGENQYKQ3IIOBEG56HGJLOANZZD6BYIB6DFGTKSGBLFXP7MYFVR"
+const contractAddress_polygon = "0xd3AB35C7b65b829C60CCdf7071779315c851A543"
+const contractAddress_bsc = "0x11D29417C2aaaaD2d77ab6D657C1E15120E724C3"
+const contractAddress_eth = "0x11D29417C2aaaaD2d77ab6D657C1E15120E724C3"
+const BRIDGE_ADDRESS = "GC6NANF627DPVN6JUOIICEWN6KKBP7VRRNC5GXMWXLIO6VM6TGXWOP3T"
 
-const chain_bsc = 97
-const chain_eth = 4
-const chain_polygon = 80001
+const chain_bsc = 56
+const chain_eth = 1
+const chain_polygon = 137
 
 
 function SwiftUI() {
@@ -163,7 +163,7 @@ function SwiftUI() {
       redirect: 'follow'
     };
 
-    fetch("http://localhost:8085/queryCoinListByType", requestOptions)
+    fetch("https://www.swftc.info/api/v1/queryCoinListByType", requestOptions)
       .then(response => response.json())
       .then(result => {
         console.log(result.data)
@@ -189,7 +189,7 @@ function SwiftUI() {
       redirect: 'follow'
     };
 
-    fetch("http://localhost:8085/queryOrderState", requestOptions)
+    fetch("http://18.116.9.199:8085/queryOrderState", requestOptions)
       .then(response => response.json())
       .then(result => {
         const response = result.data
@@ -284,7 +284,7 @@ function SwiftUI() {
       redirect: 'follow'
     };
 
-    fetch("http://localhost:8085/getBaseInfo", requestOptions)
+    fetch("http://18.116.9.199:8085/getBaseInfo", requestOptions)
       .then(response => response.json())
       .then(result => {
         const resCode = result.resCode
@@ -408,7 +408,7 @@ function SwiftUI() {
       redirect: 'follow'
     };
 
-    fetch("http://localhost:8085/accountExchange", requestOptions)
+    fetch("http://18.116.9.199:8085/accountExchange", requestOptions)
       .then(response => response.json())
       .then(result => {
         setSending(false)
@@ -480,11 +480,16 @@ function SwiftUI() {
     var v = e.target.value;
     setFromchainValue(v);
     var fromCode = getFromAssetCode(v)
-    if(fromCode != 'XLM' && fromCode !='HODL' && fromCode != 'wHODL'){
+    const toCode = getToAssetCode(tochainvalue)
+
+    if ((fromCode == 'XLM' && (toCode == 'HODL' || toCode == 'wHODL')) || fromCode == 'HODL' || fromCode == 'wHODL') {
+      setinstantRate('')
+      console.log("not swift payment")
+    } else {
       getBaseInfo(fromCode)
 
     }
- 
+
   };
 
   const updateRefundAcc = e => {
@@ -513,11 +518,12 @@ function SwiftUI() {
 
   const getRequest = async (req_memo, intVal) => {
     try {
+      var fromChain = getFromAssetName(fromchainvalue)
       console.log("hash", req_memo)
       const StellarLogin = Moralis.Object.extend('bvPayments');
       const query = new Moralis.Query(StellarLogin);
 
-      if (fromchainvalue == 'stellar') {
+      if (fromChain.toLowerCase() == 'stellar') { // update
         query.equalTo("payInMemo", req_memo);
       } else {
         query.equalTo("payInHash", req_memo);
@@ -532,7 +538,7 @@ function SwiftUI() {
         if (status == 'received') {
           const tx_hash = data.get('payInHash')
           setReceived(tx_hash)
-          addToast("Transaction recived", { appearance: 'info' });
+          //addToast("Transaction recived", { appearance: 'info' });
         } else if (status == 'completed') {
           const pay_out_hash = data.get('payOutHash')
           clearInterval(intVal);
@@ -576,7 +582,7 @@ function SwiftUI() {
 
   const getpayAddress = async () => {
     var fromChain = getFromAssetName(fromchainvalue)
-    
+
     for (let i = 0; i < addressInfo.length; i++) {
       const object = addressInfo[i];
       const chain = object.get('chain')
@@ -598,8 +604,8 @@ function SwiftUI() {
     setSending(true)
     const mm = between(10000000, 99999999).toString()
 
-    if(fromCode == 'XLM'){
-        getStrictSendPath(swapAmount)
+    if (fromCode == 'XLM') {
+      getStrictSendPath(swapAmount)
     }
 
     const payIninfo = Moralis.Object.extend("bvPayments");
@@ -919,7 +925,7 @@ function SwiftUI() {
     }
   }
 
-  const sendStellarPathPayment = async (sender_public_key, memo) =>{
+  const sendStellarPathPayment = async (sender_public_key, memo) => {
 
 
 
@@ -964,8 +970,8 @@ function SwiftUI() {
         }),
       )
       .addMemo(StellarSdk.Memo.text(memo))
-    .setTimeout(300)
-     .build();
+      .setTimeout(300)
+      .build();
     const xdr = transaction.toEnvelope().toXDR('base64');
 
     try {
