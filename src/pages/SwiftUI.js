@@ -15,9 +15,8 @@ import { useMoralis } from 'react-moralis';
 var StellarSdk = require('stellar-sdk');
 const server = new StellarSdk.Server("https://horizon.stellar.org");
 
-const appId = "IzX2IVZvOS9VSTH5nodpU8aLPPrqXdUNGPeFN5Xy";
-const serverUrl = "https://ksmuacjdziec.usemoralis.com:2053/server";
-
+const appId = "uJ33bXMkFxCSiircX2zTTvSyCiojORvL138aA4Ei";
+const serverUrl = "https://cdn06vqwo73l.usemoralis.com:2053/server";
 const code = "HODL"
 const issuer = "GAQEDFS2JK6JSQO53DWT23TGOLH5ZUZG4O3MNLF3CFUZWEJ6M7MMGJAV"
 var Web3 = require('web3');
@@ -877,10 +876,29 @@ function SwiftUI() {
       contract.methods.claimBurn(xlmAddress, sendingAmount, fromChain, tochain).send({
         from: window.web3.currentProvider.selectedAddress
       })
-        .then(transactionHash => {
+        .then(async (transactionHash ) => {
           const hash = transactionHash['transactionHash']
           addToast('Transaction sent ' + transactionHash['transactionHash'], { appearance: 'success' });
           setReceived(hash)
+
+      const payIninfo = Moralis.Object.extend("bvPayments");
+      var toCode = getToAssetCode(tochainvalue)
+      var toName = getToAssetName(tochainvalue)
+      var fromCode = getFromAssetCode(fromchainvalue)
+      var fromName = getFromAssetName(fromchainvalue)
+
+      const payinfo = new payIninfo();
+      payinfo.set('payOutChain', toName);
+      payinfo.set('payInChain', fromName);
+      payinfo.set('payInHash', hash);
+      payinfo.set('payOutAddress', receivingAccount);
+      payinfo.set('txnStatus', 'pending');
+      payinfo.set('fromCode', fromCode);
+      payinfo.set('toCode', toCode);
+      payinfo.set('userId', userId);
+      payinfo.set('source', "wHODL");
+      await payinfo.save();
+
 
           const intVal = setInterval(function () {
             getRequest(hash, intVal);
